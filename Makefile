@@ -7,11 +7,7 @@ $(TARGET): $(OBJS)
 	@gcc -o $@ build/*.o $(CFLAGS)
 	@echo $@
 
-build/%.o: %.c %.h
-	@gcc -o $@ -c $< $(CFLAGS)
-	@echo $@
-
-build/%.o: %.c
+build/%.o: %.c $(wildcard *.h)
 	@gcc -o $@ -c $< $(CFLAGS)
 	@echo $@
 

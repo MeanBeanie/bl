@@ -37,6 +37,13 @@ void print_expr(struct expr* expr, int indent){
 			print_expr(expr->as.var_create->value, indent+1);
 			break;
 		}
+		case ET_VAR_ASSIGN:
+		{
+			print_ind("Ident: %s", expr->as.var_assign->identifier.raw.arr);
+			print_ind("Value:");
+			print_expr(expr->as.var_assign->value, indent+1);
+			break;
+		}
 	}
 
 	printf("\n");

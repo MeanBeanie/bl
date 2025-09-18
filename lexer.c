@@ -8,7 +8,8 @@
 	tok.raw = string_from(start, len);\
 	tok.line = line;\
 	da_append(res,tok);\
-	tok = (struct token){0}
+	tok = (struct token){0};\
+	tok.type = TT_NONE
 
 #define math_char(c,cstr,ceq,typen,typeeq)\
 	else if(buffer[i] == c){\
@@ -118,7 +119,6 @@ struct da_token tokenize(char* buffer, size_t buflen){
 				len++; // include the closing quote
 
 				next_tok;
-				i--;
 				break;
 			}
 			case TT_NONE:

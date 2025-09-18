@@ -274,6 +274,35 @@ struct da_expr parse(struct da_token tokens){
 				default: break;
 			}
 		}
+		else if(tokens.arr[index].type == TT_EQUAL){
+			e = (struct expr){
+				.type = ET_VAR_ASSIGN,
+				.as.var_assign = malloc(sizeof(struct expr_var_assign))
+			};
+
+			e.as.var_assign->identifier = tokens.arr[index-1];
+			index++;
+			if(tokens.arr[index].type != TT_STRING){
+					e.as.var_assign->value = malloc(sizeof(struct expr));
+					struct expr b = shunting_yard(tokens, &index);
+					memcpy(e.as.var_assign->value, &b, sizeof(struct expr));
+					index++;
+			}
+			else{
+					e.as.var_assign->value = malloc(sizeof(struct expr));
+					struct expr lit = (struct expr){
+						.type = ET_LITERAL,
+						.as.literal = malloc(sizeof(struct expr_literal))
+					};
+					lit.as.literal->generated = 0;
+					lit.as.literal->tok = tokens.arr[index];
+					memcpy(e.as.var_assign->value, &lit, sizeof(struct expr));
+					index += 2;
+			}
+		}
+		else{
+			index++;
+		}
 
 		if(e.type != ET_NONE){
 			da_append(res,e);
@@ -304,6 +333,12 @@ void free_expr(struct expr* expr){
 			free(expr->as.var_create);
 			break;
 		}
+		case ET_VAR_ASSIGN:
+		{
+			free_expr(expr->as.var_assign->value);
+			free(expr->as.var_assign);
+			break;
+		}
 	}
 }
 void free_exprs(struct da_expr exprs){
@@ -318,6 +353,8 @@ const char* extype2str(enum expr_type type){
 		case ET_BINARY: return "<BINARY>";
 		case ET_LITERAL: return "<LITERAL>";
 		case ET_VAR_CREATE: return "<VAR_CREATE>";
+		case ET_VAR_ASSIGN: return "<VAR_ASSIGN>";
 	}
+
 	return "<Invalid Expr>";
 }
