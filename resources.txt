@@ -1,0 +1,3 @@
+1. https://craftinginterpreters.com/parsing-expressions.html
+2. https://en.wikipedia.org/wiki/Shunting_yard_algorithm
+3. https://youtu.be/unh6aK8WMwM?si=cR9V9kWdXa63CQxW 
