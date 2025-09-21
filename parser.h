@@ -13,6 +13,8 @@ enum expr_type {
 	ET_LITERAL,
 	ET_VAR_CREATE,
 	ET_VAR_ASSIGN,
+	ET_FUN_CREATE,
+	ET_FUN_CALL,
 };
 
 struct expr_binary {
@@ -37,6 +39,17 @@ struct expr_var_assign {
 	struct expr* value;
 };
 
+struct expr_fun_create {
+	struct token identifier;
+	struct da_expr args;
+	struct da_expr exprs;
+};
+
+struct expr_fun_call {
+	struct token identifier;
+	struct da_expr args;
+};
+
 struct expr {
 	enum expr_type type;
 	union {
@@ -44,6 +57,8 @@ struct expr {
 		struct expr_literal* literal;
 		struct expr_var_create* var_create;
 		struct expr_var_assign* var_assign;
+		struct expr_fun_create* fun_create;
+		struct expr_fun_call* fun_call;
 	} as;
 };
 

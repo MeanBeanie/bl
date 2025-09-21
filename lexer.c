@@ -61,6 +61,10 @@ struct da_token tokenize(char* buffer, size_t buflen){
 
 	for(size_t i = 0; i < buflen; i++){
 		if(buffer[i] == '\n'){ line++; }
+		else if(buffer[i] == '#'){
+			while(buffer[++i] != '\n'){};
+			line++;
+		}
 
 		switch(tok.type){
 			case TT_FLOAT:
@@ -98,11 +102,17 @@ struct da_token tokenize(char* buffer, size_t buflen){
 					string_match(tok.raw,"stdout"){
 						tok.type = TT_STDOUT;
 					}
+					string_match(tok.raw,"return"){
+						tok.type = TT_RETURN;
+					}
 					string_match(tok.raw,"num"){
 						tok.type = TT_VAR_NUM;
 					}
 					string_match(tok.raw,"str"){
 						tok.type = TT_VAR_STR;
+					}
+					string_match(tok.raw,"fun"){
+						tok.type = TT_VAR_FUN;
 					}
 				string_default{}
 
@@ -251,7 +261,8 @@ const char* toktype2str(enum token_type type){
 		case TT_STDOUT: return "<STDOUT>";
 		case TT_VAR_NUM: return "<VAR_NUM>";
 		case TT_VAR_STR: return "<VAR_STR>";
-		case TT_FUNCTION_MARKER: return "<lmao functions and stuff>";
+		case TT_VAR_FUN: return "<VAR_FUN>";
+		case TT_RETURN: return "<RETURN>";
 	}
 
 	return "<Invalid Token>";

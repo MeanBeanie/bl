@@ -20,7 +20,8 @@
 
 int is_var_type(enum token_type type){
 	return type == TT_VAR_NUM
-	|| type == TT_VAR_STR;
+	|| type == TT_VAR_STR
+	|| type == TT_VAR_FUN;
 }
 
 int op_precedence(enum token_type op){
@@ -75,7 +76,12 @@ struct expr shunting_yard(struct da_token tokens, size_t* index){
 	struct da_token holding;
 	da_init(holding);
 
-	while((*index) < tokens.meta.count && tokens.arr[*index].type != TT_EXPR_END){
+	int paren_count = 0;
+
+	while((*index) < tokens.meta.count
+		&& tokens.arr[*index].type != TT_EXPR_END
+		&& tokens.arr[*index].type != TT_ARG_SEP
+	){
 		enum token_type type = tokens.arr[*index].type;
 		if(is_binop(type)){
 			if(holding.meta.count != 0){
@@ -96,12 +102,15 @@ struct expr shunting_yard(struct da_token tokens, size_t* index){
 		}
 		else if(type == TT_POPEN){
 			da_append(holding,tokens.arr[*index]);
+			paren_count++;
 		}
 		else if(type == TT_PCLOSE){
+			if(paren_count == 0){ break; }
 			while(holding.arr[holding.meta.count-1].type != TT_POPEN){
 				da_append(output,holding.arr[holding.meta.count-1]);
 				holding.meta.count--;
 			}
+			paren_count--;
 
 			holding.meta.count--; // get rid of the popen
 		}
@@ -137,7 +146,7 @@ struct expr shunting_yard(struct da_token tokens, size_t* index){
 	struct expr expr_hold[10] = {0};
 	int hold_index = 0;
 
-	while(last_op != 0){
+	while(last_op > 0){
 		int working_op = last_op;
 		while(is_binop(output.arr[working_op-1].type)){
 			working_op--;
@@ -237,41 +246,114 @@ struct da_expr parse(struct da_token tokens){
 	struct da_expr res = {0};
 	da_init(res);
 
+	struct da_expr* expr_target = &res;
+	int in_function = 0;
+
 	size_t index = 0;
 	while(index < tokens.meta.count){
 		struct expr e = {0};
+		if(in_function == 2 && tokens.arr[index].type == TT_CCLOSE){
+			in_function = 0;
+			expr_target = &res;
+			index++;
+			continue;
+		}
 		
 		if(is_var_type(tokens.arr[index].type)){
-			e = (struct expr){
-				.type = ET_VAR_CREATE,
-				.as.var_create = malloc(sizeof(struct expr_var_create))
-			};
+			if(tokens.arr[index].type == TT_VAR_FUN){
+				struct expr fun = (struct expr){
+					.type = ET_FUN_CREATE,
+					.as.fun_create = malloc(sizeof(struct expr_fun_create))
+				};
+				fun.as.fun_create->identifier = tokens.arr[index+1];
+				da_init(fun.as.fun_create->exprs);
+				da_init(fun.as.fun_create->args);
 
-			e.as.var_create->type = tokens.arr[index].type;
-			e.as.var_create->identifier = tokens.arr[index+1];
-			index += 3;
-			switch(e.as.var_create->type){
-				case TT_VAR_NUM:
-				{
-					e.as.var_create->value = malloc(sizeof(struct expr));
-					struct expr b = shunting_yard(tokens, &index);
-					memcpy(e.as.var_create->value, &b, sizeof(struct expr));
-					break;
-				}
-				case TT_VAR_STR:
-				{
-					e.as.var_create->value = malloc(sizeof(struct expr));
-					struct expr lit = (struct expr){
-						.type = ET_LITERAL,
-						.as.literal = malloc(sizeof(struct expr_literal))
-					};
-					lit.as.literal->generated = 0;
-					lit.as.literal->tok = tokens.arr[index];
-					memcpy(e.as.var_create->value, &lit, sizeof(struct expr));
+				expr_target = &fun.as.fun_create->exprs;
+
+				index += 2;
+
+				if(tokens.arr[index+1].type == TT_COPEN){
+					// no args
+					da_append(res,fun);
+					in_function = 2;
 					index += 2;
-					break;
 				}
-				default: break;
+				else if(tokens.arr[index].type == TT_POPEN){
+					index++;
+					while(tokens.arr[index].type != TT_EQUAL){
+						if(!is_var_type(tokens.arr[index].type)){
+							index++;
+							continue;
+						}
+
+						struct expr arg = (struct expr){
+							.type = ET_VAR_CREATE,
+							.as.var_create = malloc(sizeof(struct expr_var_create))
+						};
+						arg.as.var_create->type = tokens.arr[index].type;
+						arg.as.var_create->identifier = tokens.arr[index+1];
+						arg.as.var_create->value = NULL;
+						da_append(fun.as.fun_create->args,arg);
+						// lowk does just ignore ARG_SEP but c'est pas grave
+						index += 3;
+					}
+
+					da_append(res,fun);
+
+					if(tokens.arr[index+1].type == TT_COPEN){
+						in_function = 2;
+						index += 2;
+					}
+					else{
+						in_function = 1;
+						index += 2;
+					}
+				}
+				else {
+					da_append(res,fun);
+					in_function = 1;
+				};
+			}
+			else{
+				e = (struct expr){
+					.type = ET_VAR_CREATE,
+					.as.var_create = malloc(sizeof(struct expr_var_create))
+				};
+
+				e.as.var_create->type = tokens.arr[index].type;
+				e.as.var_create->identifier = tokens.arr[index+1];
+				
+				index += 3;
+				if(tokens.arr[index-1].type == TT_EXPR_END){
+					e.as.var_create->value = NULL;
+				}
+				else{
+					e.as.var_create->value = malloc(sizeof(struct expr));
+					switch(e.as.var_create->type){
+						case TT_VAR_NUM:
+						{
+							e.as.var_create->value = malloc(sizeof(struct expr));
+							struct expr b = shunting_yard(tokens, &index);
+							memcpy(e.as.var_create->value, &b, sizeof(struct expr));
+							break;
+						}
+						case TT_VAR_STR:
+						{
+							e.as.var_create->value = malloc(sizeof(struct expr));
+							struct expr lit = (struct expr){
+								.type = ET_LITERAL,
+								.as.literal = malloc(sizeof(struct expr_literal))
+							};
+							lit.as.literal->generated = 0;
+							lit.as.literal->tok = tokens.arr[index];
+							memcpy(e.as.var_create->value, &lit, sizeof(struct expr));
+							index += 2;
+							break;
+						}
+						default: break;
+					}
+				}
 			}
 		}
 		else if(tokens.arr[index].type == TT_EQUAL){
@@ -300,12 +382,51 @@ struct da_expr parse(struct da_token tokens){
 					index += 2;
 			}
 		}
+		else if(index+1 < tokens.meta.count
+		&& tokens.arr[index].type == TT_IDENT
+		&& tokens.arr[index+1].type == TT_POPEN){
+			e = (struct expr){
+				.type = ET_FUN_CALL,
+				.as.fun_call = malloc(sizeof(struct expr_fun_call))
+			};
+			da_init(e.as.fun_call->args);
+
+			e.as.fun_call->identifier = tokens.arr[index];
+			index += 2;
+			while(tokens.arr[index].type != TT_PCLOSE && tokens.arr[index].type != TT_EXPR_END){
+				if(is_binhs(tokens.arr[index].type)){
+					struct expr shunt_expr = {0};
+					shunt_expr = shunting_yard(tokens, &index);
+					da_append(e.as.fun_call->args, shunt_expr);
+				}
+				else if(tokens.arr[index].type == TT_STRING){
+					struct expr lit = (struct expr){
+						.type = ET_LITERAL,
+						.as.literal = malloc(sizeof(struct expr_literal))
+					};
+					lit.as.literal->generated = 0;
+					lit.as.literal->tok = tokens.arr[index];
+					da_append(e.as.fun_call->args, lit);
+					if(tokens.arr[index+1].type == TT_ARG_SEP){
+						index += 2; // skips past the arg seperator
+					}
+					else{
+						index++;
+					}
+				}
+				else{ index++; }
+			}
+		}
 		else{
 			index++;
 		}
 
 		if(e.type != ET_NONE){
-			da_append(res,e);
+			da_append((*expr_target),e);
+			if(in_function == 1){
+				in_function = 0;
+				expr_target = &res;
+			}
 		}
 	}
 
@@ -313,30 +434,50 @@ struct da_expr parse(struct da_token tokens){
 }
 
 void free_expr(struct expr* expr){
+	if(expr == NULL){ return; }
 	switch(expr->type){
 		case ET_NONE: break;
 		case ET_BINARY:
 		{ // don't free binary->op as its handled by tokens
 			free_expr(expr->as.binary->lhs);
 			free_expr(expr->as.binary->rhs);
-			free(expr->as.binary);
+			if(expr->as.binary != NULL){ free(expr->as.binary); }
+			expr->as.binary = NULL;
 			break;
 		}
 		case ET_LITERAL:
 		{
-			free(expr->as.literal);
+			if(expr->as.literal != NULL){ free(expr->as.literal); }
+			expr->as.literal = NULL;
 			break;
 		}
 		case ET_VAR_CREATE:
 		{
 			free_expr(expr->as.var_create->value);
-			free(expr->as.var_create);
+			if(expr->as.var_create != NULL){ free(expr->as.var_create); }
+			expr->as.var_create = NULL;
 			break;
 		}
 		case ET_VAR_ASSIGN:
 		{
 			free_expr(expr->as.var_assign->value);
-			free(expr->as.var_assign);
+			if(expr->as.var_assign != NULL){ free(expr->as.var_assign); }
+			expr->as.var_assign = NULL;
+			break;
+		}
+		case ET_FUN_CALL:
+		{
+			free_exprs(expr->as.fun_call->args);
+			if(expr->as.fun_call != NULL){ free(expr->as.fun_call); }
+			expr->as.fun_call = NULL;
+			break;
+		}
+		case ET_FUN_CREATE:
+		{
+			free_exprs(expr->as.fun_create->exprs);
+			free_exprs(expr->as.fun_create->args);
+			if(expr->as.fun_create != NULL){ free(expr->as.fun_create); }
+			expr->as.fun_create = NULL;
 			break;
 		}
 	}
@@ -354,6 +495,8 @@ const char* extype2str(enum expr_type type){
 		case ET_LITERAL: return "<LITERAL>";
 		case ET_VAR_CREATE: return "<VAR_CREATE>";
 		case ET_VAR_ASSIGN: return "<VAR_ASSIGN>";
+		case ET_FUN_CALL: return "<FUN_CALL>";
+		case ET_FUN_CREATE: return "<FUN_CREATE>";
 	}
 
 	return "<Invalid Expr>";

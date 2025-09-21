@@ -33,8 +33,13 @@ void print_expr(struct expr* expr, int indent){
 		{
 			print_ind("Type: %s", toktype2str(expr->as.var_create->type));
 			print_ind("Ident: %s", expr->as.var_create->identifier.raw.arr);
-			print_ind("Value:");
-			print_expr(expr->as.var_create->value, indent+1);
+			if(expr->as.var_create->value == NULL){
+				print_ind("<No Value Set>");
+			}
+			else{
+				print_ind("Value:");
+				print_expr(expr->as.var_create->value, indent+1);
+			}
 			break;
 		}
 		case ET_VAR_ASSIGN:
@@ -42,6 +47,28 @@ void print_expr(struct expr* expr, int indent){
 			print_ind("Ident: %s", expr->as.var_assign->identifier.raw.arr);
 			print_ind("Value:");
 			print_expr(expr->as.var_assign->value, indent+1);
+			break;
+		}
+		case ET_FUN_CREATE:
+		{
+			print_ind("Ident: %s", expr->as.fun_create->identifier.raw.arr);
+			print_ind("Args:");					
+			for(size_t i = 0; i < expr->as.fun_create->args.meta.count; i++){
+				print_expr(&expr->as.fun_create->args.arr[i], indent+1);
+			}
+			print_ind("Exprs:");
+			for(size_t i = 0; i < expr->as.fun_create->exprs.meta.count; i++){
+				print_expr(&expr->as.fun_create->exprs.arr[i], indent+1);
+			}
+			break;
+		}
+		case ET_FUN_CALL:
+		{
+			print_ind("Ident: %s", expr->as.fun_call->identifier.raw.arr);
+			print_ind("Args:");
+			for(size_t i = 0; i < expr->as.fun_call->args.meta.count; i++){
+				print_expr(&expr->as.fun_call->args.arr[i], indent+1);
+			}
 			break;
 		}
 	}
@@ -75,8 +102,8 @@ int main(int argc, char* argv[]){
 		print_expr(&exprs.arr[i], 0);
 	}
 
-	free_tokens(tokens);
 	free_exprs(exprs);
+	free_tokens(tokens);
 
 	return 0;
 }

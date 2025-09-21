@@ -32,10 +32,9 @@ enum token_type {
 
 	TT_EXPR_END, TT_ARG_SEP,
 
-	TT_VAR_NUM, TT_VAR_STR,
+	TT_VAR_NUM, TT_VAR_STR, TT_VAR_FUN,
 
-	TT_FUNCTION_MARKER,
-	TT_STDOUT
+	TT_STDOUT, TT_RETURN
 };
 
 struct token {
