@@ -91,7 +91,7 @@ struct da_token tokenize(char* buffer, size_t buflen){
 			}
 			case TT_IDENT:
 			{
-				if(isalnum(buffer[i]) && buffer[i] != '\n'){
+				if((isalnum(buffer[i]) || buffer[i] == '_') && buffer[i] != '\n'){
 					len++;
 					break;
 				}
@@ -99,12 +99,6 @@ struct da_token tokenize(char* buffer, size_t buflen){
 				tok.raw = string_from(start, len);
 
 				string_begin_matching
-					string_match(tok.raw,"stdout"){
-						tok.type = TT_STDOUT;
-					}
-					string_match(tok.raw,"return"){
-						tok.type = TT_RETURN;
-					}
 					string_match(tok.raw,"num"){
 						tok.type = TT_VAR_NUM;
 					}
@@ -126,7 +120,7 @@ struct da_token tokenize(char* buffer, size_t buflen){
 					len++;
 					break;
 				}
-				len++; // include the closing quote
+				len--; // gets rid of the last quote
 
 				next_tok;
 				break;
@@ -145,7 +139,7 @@ struct da_token tokenize(char* buffer, size_t buflen){
 				}
 				else if(buffer[i] == '"' || buffer[i] == '\''){
 					tok.type = TT_STRING;
-					start = buffer+i;
+					start = buffer+i+1;
 					len = 1;
 				}
 				math_char('+', "+", "+=", TT_PLUS,  TT_PLEQ)
@@ -169,7 +163,7 @@ struct da_token tokenize(char* buffer, size_t buflen){
 							tok = (struct token){0};
 							break;
 						}
-						else if(isdigit(buffer[i+1])){
+						else if(isdigit(buffer[i+1]) && (res.meta.count > 0 && res.arr[res.meta.count-1].type != TT_IDENT)){ // TODO make this check good
 							// negative number
 							tok.type = TT_INT;
 							start = buffer+i;
@@ -258,11 +252,9 @@ const char* toktype2str(enum token_type type){
 		case TT_TCLOSE: return "<TCLOSE>";
 		case TT_EXPR_END: return "<EXPR_END>";
 		case TT_ARG_SEP: return "<ARG_SEP>";
-		case TT_STDOUT: return "<STDOUT>";
 		case TT_VAR_NUM: return "<VAR_NUM>";
 		case TT_VAR_STR: return "<VAR_STR>";
 		case TT_VAR_FUN: return "<VAR_FUN>";
-		case TT_RETURN: return "<RETURN>";
 	}
 
 	return "<Invalid Token>";

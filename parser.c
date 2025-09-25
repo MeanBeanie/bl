@@ -269,6 +269,8 @@ struct da_expr parse(struct da_token tokens){
 				da_init(fun.as.fun_create->exprs);
 				da_init(fun.as.fun_create->args);
 
+				fun.line = fun.as.fun_create->identifier.line;
+
 				expr_target = &fun.as.fun_create->exprs;
 
 				index += 2;
@@ -323,6 +325,7 @@ struct da_expr parse(struct da_token tokens){
 
 				e.as.var_create->type = tokens.arr[index].type;
 				e.as.var_create->identifier = tokens.arr[index+1];
+				e.line = e.as.var_create->identifier.line;
 				
 				index += 3;
 				if(tokens.arr[index-1].type == TT_EXPR_END){
@@ -363,6 +366,8 @@ struct da_expr parse(struct da_token tokens){
 			};
 
 			e.as.var_assign->identifier = tokens.arr[index-1];
+			e.line = e.as.var_assign->identifier.line;
+
 			index++;
 			if(tokens.arr[index].type != TT_STRING){
 					e.as.var_assign->value = malloc(sizeof(struct expr));
@@ -392,6 +397,8 @@ struct da_expr parse(struct da_token tokens){
 			da_init(e.as.fun_call->args);
 
 			e.as.fun_call->identifier = tokens.arr[index];
+			e.line = e.as.fun_call->identifier.line;
+
 			index += 2;
 			while(tokens.arr[index].type != TT_PCLOSE && tokens.arr[index].type != TT_EXPR_END){
 				if(is_binhs(tokens.arr[index].type)){
@@ -500,4 +507,78 @@ const char* extype2str(enum expr_type type){
 	}
 
 	return "<Invalid Expr>";
+}
+
+#define print_ind(fmt,...) printf("%s"fmt"\n", tab, ##__VA_ARGS__)
+void print_expr(struct expr* expr, int indent){
+	char tab[indent+1];
+	for(int i = 0; i < indent; i++){
+		tab[i] = '\t';
+	}
+	tab[indent] = '\0';
+	print_ind("EXPR [%s]", extype2str(expr->type));
+
+	switch(expr->type){
+		case ET_NONE: break;
+		case ET_BINARY:
+		{
+			print_ind("LHS:");
+			print_expr(expr->as.binary->lhs, indent+1);
+			print_ind("OP:");
+			print_ind("%s\n", toktype2str(expr->as.binary->op.type));
+			print_ind("RHS:");
+			print_expr(expr->as.binary->rhs, indent+1);
+			break;
+		}
+		case ET_LITERAL:
+		{
+			print_ind("Value: %s", toktype2str(expr->as.literal->tok.type));
+			print_ind("Raw: %s", expr->as.literal->tok.raw.arr);
+			break;
+		}
+		case ET_VAR_CREATE:
+		{
+			print_ind("Type: %s", toktype2str(expr->as.var_create->type));
+			print_ind("Ident: %s", expr->as.var_create->identifier.raw.arr);
+			if(expr->as.var_create->value == NULL){
+				print_ind("<No Value Set>");
+			}
+			else{
+				print_ind("Value:");
+				print_expr(expr->as.var_create->value, indent+1);
+			}
+			break;
+		}
+		case ET_VAR_ASSIGN:
+		{
+			print_ind("Ident: %s", expr->as.var_assign->identifier.raw.arr);
+			print_ind("Value:");
+			print_expr(expr->as.var_assign->value, indent+1);
+			break;
+		}
+		case ET_FUN_CREATE:
+		{
+			print_ind("Ident: %s", expr->as.fun_create->identifier.raw.arr);
+			print_ind("Args:");					
+			for(size_t i = 0; i < expr->as.fun_create->args.meta.count; i++){
+				print_expr(&expr->as.fun_create->args.arr[i], indent+1);
+			}
+			print_ind("Exprs:");
+			for(size_t i = 0; i < expr->as.fun_create->exprs.meta.count; i++){
+				print_expr(&expr->as.fun_create->exprs.arr[i], indent+1);
+			}
+			break;
+		}
+		case ET_FUN_CALL:
+		{
+			print_ind("Ident: %s", expr->as.fun_call->identifier.raw.arr);
+			print_ind("Args:");
+			for(size_t i = 0; i < expr->as.fun_call->args.meta.count; i++){
+				print_expr(&expr->as.fun_call->args.arr[i], indent+1);
+			}
+			break;
+		}
+	}
+
+	printf("\n");
 }

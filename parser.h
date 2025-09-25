@@ -51,6 +51,7 @@ struct expr_fun_call {
 };
 
 struct expr {
+	int line;
 	enum expr_type type;
 	union {
 		struct expr_binary* binary;
@@ -66,4 +67,5 @@ struct da_expr parse(struct da_token tokens);
 
 void free_exprs(struct da_expr exprs);
 const char* extype2str(enum expr_type type);
+void print_expr(struct expr* expr, int indent);
 #endif // PARSER_H

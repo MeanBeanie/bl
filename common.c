@@ -3,10 +3,42 @@
 string string_from(char* str, int len){
 	string res = {0};
 
-	res.len = len;
+	res.len = 0;
+	res.arr = calloc(len+1, sizeof(char));
 
-	res.arr = malloc(len+1);
-	strncpy(res.arr, str, len);
+	for(int i = 0; i < len; i++){
+		if(str[i] != '\\'){
+			res.arr[res.len++] = str[i];
+		}
+		else{
+			if(i+1 >= len){ break; }
+			switch(str[i+1]){
+				case 'n':
+				{
+					res.arr[res.len++] = '\n';
+					break;
+				}
+				case 't':
+				{
+					res.arr[res.len++] = '\t';
+					break;
+				}
+				case 'r':
+				{
+					res.arr[res.len++] = '\r';
+					break;
+				}
+				default:
+				{
+					res.arr[res.len++] = '\\';
+					i--;
+					break;
+				}
+			}
+			i++;
+		}
+	}
+
 	res.arr[res.len] = '\0';
 
 	return res;
