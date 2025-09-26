@@ -7,6 +7,7 @@
 struct variable {
 	string id;
 	enum token_type type;
+	int generated; // if the string component was generated
 	union {
 		float num;
 		string str;

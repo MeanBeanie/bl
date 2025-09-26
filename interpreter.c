@@ -69,6 +69,8 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 					break;
 				}
 
+				var.id = exprs->arr[i].as.var_create->identifier.raw;
+
 				da_append(scope.vars,var);
 				break;
 			}
@@ -138,33 +140,23 @@ et_fun_call_end:
 
 end_interpret:
 	da_iterate(scope.vars,i){
-		if(scope.vars.arr[i].type == TT_VAR_STR){
+		if(scope.vars.arr[i].type == TT_VAR_STR && scope.vars.arr[i].generated){
 			string_free(&scope.vars.arr[i].as.str);
 		}
 	}
 	free(scope.vars.arr);
 }
 
-int load_var(struct variable* var, struct scope* scope, struct expr* value){
-	if(var->type == TT_VAR_NUM){
-		result res = simplify_to_float(scope, value);
-		if(res.failed){
-			return 0;
-		}
-		var->as.num = res.as.num;
-	}
-	else{ // TT_VAR_STR
-		var->as.str = value->as.literal->tok.raw;
-	}
-
-	return 1;
-}
-
 string ftos(float f){
 	string res = {0};
 	
 	char buf[128] = {0};
-	sprintf(buf, "%f", f);
+	if((int)f == f){ // can be simplified to int?
+		sprintf(buf, "%d", (int)f);
+	}
+	else{
+		sprintf(buf, "%.4f", f);
+	}
 
 	res = string_from(buf, strlen(buf));
 
@@ -175,7 +167,7 @@ float stof(char* str){
 	float res = 0.f;
 	int dec = 0;
 
-	while(*str++){
+	do {
 		char c = (*str);
 		if(c == '-'){ res *= -1; }
 		else if(c == '.'){ dec = 10; }
@@ -190,13 +182,30 @@ float stof(char* str){
 				res += (c - '0');
 			}
 		}
-	}
+	} while(*str++);
 
 	return res;
 }
 
+int load_var(struct variable* var, struct scope* scope, struct expr* value){
+	if(var->type == TT_VAR_NUM){
+		result res = simplify_to_float(scope, value);
+		if(res.failed){
+			return 0;
+		}
+		var->as.num = res.as.num;
+	}
+	else{ // TT_VAR_STR
+		var->generated = 0;
+		var->as.str = value->as.literal->tok.raw;
+	}
+
+	return 1;
+}
+
 struct variable* find_var(struct scope* scope, string identifier){
 	da_iterate(scope->vars,i){ // TODO hashmaps or something, i dunno
+		if(scope->vars.arr[i].id.arr == NULL || identifier.arr == NULL){ break; }
 		if(strncmp(scope->vars.arr[i].id.arr, identifier.arr, identifier.len) == 0){
 			return &scope->vars.arr[i];
 		}
@@ -218,22 +227,18 @@ result simplify_to_float(struct scope* scope, struct expr* expr){
 		case ET_BINARY:
 		{
 			float lhs,rhs;
-			if(expr->as.binary->lhs->type == ET_BINARY){
-				struct result lhs_res = simplify_to_float(scope, expr->as.binary->lhs);
-				if(lhs_res.failed){
-					res.failed = 1;
-					break;
-				}
-				lhs = lhs_res.as.num;
+			struct result lhs_res = simplify_to_float(scope, expr->as.binary->lhs);
+			if(lhs_res.failed){
+				res.failed = 1;
+				break;
 			}
-			if(expr->as.binary->rhs->type == ET_BINARY){
-				struct result rhs_res = simplify_to_float(scope, expr->as.binary->rhs);
-				if(rhs_res.failed){
-					res.failed = 1;
-					break;
-				}
-				rhs = rhs_res.as.num;
+			lhs = lhs_res.as.num;
+			struct result rhs_res = simplify_to_float(scope, expr->as.binary->rhs);
+			if(rhs_res.failed){
+				res.failed = 1;
+				break;
 			}
+			rhs = rhs_res.as.num;
 
 			switch(expr->as.binary->op.type){
 				case TT_MINUS: res.as.num = lhs-rhs; break;
@@ -289,9 +294,9 @@ result simplify_to_string(struct scope* scope, struct expr* expr){
 		case ET_BINARY:
 		{
 			result bin_res = simplify_to_float(scope, expr);
+			res.generated = 1;
 			if(bin_res.failed){
 				error("[line %d] failed to simplify binary expression\n", expr->line);
-				res.generated = 1;
 				res.as.str = string_from("0", 1);
 				break;
 			}
@@ -337,6 +342,7 @@ int generate_args(struct scope* scope, struct da_var* vars, struct da_expr* args
 	int arg_index = 0;
 	da_iterate((*args),i){
 		struct variable v = (struct variable){
+			.generated = 0,
 			.id = arg_ids->arr[arg_index++].as.var_create->identifier.raw,
 			.type = arg_ids->arr[i].as.var_create->type
 		};
@@ -357,6 +363,7 @@ int generate_args(struct scope* scope, struct da_var* vars, struct da_expr* args
 				return 0;
 			}
 			
+			v.generated = v_res.generated;
 			v.as.str = v_res.as.str;
 		}
 
