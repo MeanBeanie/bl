@@ -1,5 +1,5 @@
 CFLAGS = -std=c11 -Wall -Wextra -ggdb
-TARGET = lang
+TARGET = bl
 
 OBJS = $(patsubst %.c, build/%.o, $(wildcard *.c))
 
