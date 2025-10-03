@@ -208,6 +208,7 @@ struct da_token tokenize(char* buffer, size_t buflen){
 	}
 
 failure:
+	if(res.meta.count == 0){ res.arr = NULL; }
 	return res;
 }
 
@@ -215,7 +216,7 @@ void free_tokens(struct da_token a){
 	for(size_t i = 0; i < a.meta.count; i++){
 		string_free(&a.arr[i].raw);
 	}
-	free(a.arr);
+	if(a.arr != NULL){ free(a.arr); }
 	a.arr = NULL;
 }
 
