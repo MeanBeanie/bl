@@ -32,7 +32,7 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 	struct da_func funcs;
 	da_init(funcs);
 
-	if(argv != NULL && arg_ids != NULL){
+	if(argv != NULL || arg_ids != NULL){
 		if(argv->meta.count != arg_ids->meta.count){
 			fatal("Failed to call function with improper amout of args (%zu given, %zu expected)", argv->meta.count, arg_ids->meta.count);
 			goto end_interpret;
@@ -55,6 +55,15 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 			}
 		}
 	}
+	else if(prev_scope_vars != NULL){
+		// subscope, we want access to the previous scopes variables
+		da_iterate((*prev_scope_vars),i){
+			da_append(scope.vars, prev_scope_vars->arr[i]);
+		}
+	}
+
+	int old_skip_hold = 0;
+	int skip_hold = 0;
 
 	da_iterate((*exprs),i){
 		switch(exprs->arr[i].type){
@@ -102,6 +111,38 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 			case ET_FUN_CALL:
 			{
 				string_begin_matching
+					string_match(exprs->arr[i].as.fun_call->identifier.raw,"if"){
+						if(exprs->arr[i].as.fun_call->args.meta.count != 1){
+							fatal("[line %d] if expects one argument\n");
+							i = exprs->meta.count+1;
+							goto et_fun_call_end;
+						}
+
+						result cond_res = simplify_to_float(&scope, &exprs->arr[i].as.fun_call->args.arr[0]);
+						if(cond_res.failed){
+							fatal("[line %d] cannot if %s\n", exprs->arr[i].line, extype2str(exprs->arr[i].as.fun_call->args.arr[0].type));
+							i = exprs->meta.count+1;
+							goto et_fun_call_end;
+						}
+
+						int else_cond = i + 2 < exprs->meta.count
+						                && exprs->arr[i+2].type == ET_FUN_CALL
+						                && strncmp(exprs->arr[i+2].as.fun_call->identifier.raw.arr, "else", 4) == 0;
+
+						if(cond_res.as.num == 0.0f){
+							if(else_cond){
+								i += 2; // skip to whatever else wants to do
+							}
+							else{
+								i++; // skip next expr on false
+							}
+						}
+						else if(else_cond){
+							// we have an else we need to skip
+							skip_hold = 2;
+						}
+						break;
+					}
 					string_match(exprs->arr[i].as.fun_call->identifier.raw,"sout"){
 						da_iterate(exprs->arr[i].as.fun_call->args,j){
 							result arg_res = simplify_to_string(&scope, &exprs->arr[i].as.fun_call->args.arr[j]);
@@ -134,8 +175,19 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 et_fun_call_end:
 				break;
 			}
+			case ET_BLOCK:
+			{
+				interpret(&scope.vars, &exprs->arr[i].as.block, NULL, NULL);
+				break;
+			}
 			default: break;
 		}
+
+		if(skip_hold != 0 && old_skip_hold == skip_hold){
+			i += skip_hold;
+			skip_hold = 0;
+		}
+		old_skip_hold = skip_hold;
 	}
 
 end_interpret:
@@ -241,6 +293,11 @@ result simplify_to_float(struct scope* scope, struct expr* expr){
 			rhs = rhs_res.as.num;
 
 			switch(expr->as.binary->op.type){
+				case TT_LT: res.as.num = lhs < rhs; break;
+				case TT_LTEQ: res.as.num = lhs <= rhs; break;
+				case TT_GT: res.as.num = lhs > rhs; break;
+				case TT_GTEQ: res.as.num = lhs >= rhs; break;
+				case TT_EQEQ: res.as.num = lhs == rhs; break;
 				case TT_MINUS: res.as.num = lhs-rhs; break;
 				case TT_STAR: res.as.num = lhs*rhs; break;
 				case TT_SLASH: res.as.num = lhs/rhs; break;
