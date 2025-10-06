@@ -15,7 +15,6 @@ enum expr_type {
 	ET_VAR_ASSIGN,
 	ET_FUN_CREATE,
 	ET_FUN_CALL,
-	ET_BLOCK,
 };
 
 struct expr_binary {
@@ -61,7 +60,6 @@ struct expr {
 		struct expr_var_assign* var_assign;
 		struct expr_fun_create* fun_create;
 		struct expr_fun_call* fun_call;
-		struct da_expr block;
 	} as;
 };
 

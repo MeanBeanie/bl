@@ -26,11 +26,6 @@ int is_var_type(enum token_type type){
 
 int op_precedence(enum token_type op){
 	switch(op){
-		case TT_GT:
-		case TT_LT:
-		case TT_GTEQ:
-		case TT_LTEQ:
-		case TT_EQEQ:
 		case TT_MINUS:
 		case TT_PLUS: return 1;
 		case TT_SLASH:
@@ -43,13 +38,7 @@ int is_binop(enum token_type type){
 	return type == TT_PLUS
 	|| type == TT_MINUS
 	|| type == TT_STAR
-	|| type == TT_SLASH
-	|| type == TT_GT
-	|| type == TT_LT
-	|| type == TT_GTEQ
-	|| type == TT_LTEQ
-	|| type == TT_EQEQ
-	;
+	|| type == TT_SLASH;
 }
 
 int is_binhs(enum token_type type){
@@ -282,11 +271,13 @@ struct da_expr parse(struct da_token tokens){
 
 				fun.line = fun.as.fun_create->identifier.line;
 
+				expr_target = &fun.as.fun_create->exprs;
+
 				index += 2;
 
 				if(tokens.arr[index+1].type == TT_COPEN){
 					// no args
-					da_append((*expr_target),fun);
+					da_append(res,fun);
 					in_function = 2;
 					index += 2;
 				}
@@ -310,7 +301,7 @@ struct da_expr parse(struct da_token tokens){
 						index += 3;
 					}
 
-					da_append((*expr_target),fun);
+					da_append(res,fun);
 
 					if(tokens.arr[index+1].type == TT_COPEN){
 						in_function = 2;
@@ -322,11 +313,9 @@ struct da_expr parse(struct da_token tokens){
 					}
 				}
 				else {
-					da_append((*expr_target),fun);
+					da_append(res,fun);
 					in_function = 1;
-				}
-
-				expr_target = &fun.as.fun_create->exprs;
+				};
 			}
 			else{
 				e = (struct expr){
@@ -435,17 +424,6 @@ struct da_expr parse(struct da_token tokens){
 				else{ index++; }
 			}
 		}
-		else if(tokens.arr[index].type == TT_COPEN){
-			struct expr block = (struct expr){
-				.line = tokens.arr[index].line,
-				.type = ET_BLOCK
-			};
-			da_init(block.as.block);
-
-			da_append((*expr_target),block);
-			in_function = 2;
-			index++;
-		}
 		else{
 			index++;
 		}
@@ -509,18 +487,12 @@ void free_expr(struct expr* expr){
 			expr->as.fun_create = NULL;
 			break;
 		}
-		case ET_BLOCK:
-		{
-			free_exprs(expr->as.block);
-			break;
-		}
 	}
 }
 void free_exprs(struct da_expr exprs){
 	da_iterate(exprs,i){
 		free_expr(&exprs.arr[i]);
 	}
-	if(exprs.arr != NULL){ free(exprs.arr); }
 }
 
 const char* extype2str(enum expr_type type){
@@ -532,7 +504,6 @@ const char* extype2str(enum expr_type type){
 		case ET_VAR_ASSIGN: return "<VAR_ASSIGN>";
 		case ET_FUN_CALL: return "<FUN_CALL>";
 		case ET_FUN_CREATE: return "<FUN_CREATE>";
-		case ET_BLOCK: return "<BLOCK>";
 	}
 
 	return "<Invalid Expr>";
@@ -604,13 +575,6 @@ void print_expr(struct expr* expr, int indent){
 			print_ind("Args:");
 			for(size_t i = 0; i < expr->as.fun_call->args.meta.count; i++){
 				print_expr(&expr->as.fun_call->args.arr[i], indent+1);
-			}
-			break;
-		}
-		case ET_BLOCK:
-		{
-			for(size_t i = 0; i < expr->as.block.meta.count; i++){
-				print_expr(&expr->as.block.arr[i], indent+1);
 			}
 			break;
 		}
