@@ -45,7 +45,9 @@ math(x, 32.2, 64.4);
 > Note: These are listed in **no particular order**, they will be finished as I feel like working on them
 
 - [x] Conditional branching
+	- [ ] nested conditionals
 - [ ] Loops
+	- [ ] nested loops
 - [ ] Function return values
 - [ ] Standard library
 - [ ] Passing around functions as arguments

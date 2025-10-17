@@ -110,35 +110,96 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 			}
 			case ET_FUN_CALL:
 			{
+				struct expr_fun_call* fun_call = exprs->arr[i].as.fun_call;
 				string_begin_matching
-					string_match(exprs->arr[i].as.fun_call->identifier.raw, "while"){
-						scope.loop_stack[scope.loop_index] = i+1;
-						result cond_res = simplify_to_float(&scope, &exprs->arr[i].as.fun_call->args.arr[0]);
+					string_match(exprs->arr[i].as.fun_call->identifier.raw, "for"){
+						// NOTE: UNUSED CURRENTLY
+						if(scope.loop_index == 0 || (scope.loop_index != 0 && scope.loop_stack[scope.loop_index-1] != i)){
+							scope.loop_stack[scope.loop_index++] = i;
+						}
+						if(fun_call->args.arr[0].type != ET_LITERAL || fun_call->args.arr[1].type != ET_LITERAL){
+							fatal("[line %d] for expects literals in the first two args, not: %s and %s\n", exprs->arr[i].line, extype2str(fun_call->args.arr[0].type), extype2str(fun_call->args.arr[1].type));
+							i = exprs->meta.count+1;
+							goto et_fun_call_end;
+						}
+						// if the variable doesn't exist, this is our first iteration and we should create it
+						struct variable* iterator = find_var(&scope, fun_call->args.arr[0].as.literal->tok.raw);
+						if(iterator == NULL){
+							struct variable v = {0};
+							v.type = TT_VAR_NUM;
+							result val_res = simplify_to_float(&scope, &fun_call->args.arr[1]);
+							if(val_res.failed){
+								fatal("[line %d] could not assign iterator to value", exprs->arr[i].line);
+								i = exprs->meta.count+1;
+								goto et_fun_call_end;
+							}
+							v.as.num = val_res.as.num;
+							v.id = fun_call->args.arr[0].as.literal->tok.raw;
+							
+							da_append(scope.vars,v);
+						}
+						else{
+							result new_iterator_val = simplify_to_float(&scope, &fun_call->args.arr[3]);
+							if(new_iterator_val.failed){
+								fatal("[line %d] cannot modify iterator with %s\n", exprs->arr[i].line, extype2str(fun_call->args.arr[3].type));
+								i = exprs->meta.count+1;
+								goto et_fun_call_end;
+							}
+
+							iterator->as.num = new_iterator_val.as.num;
+						}
+
+						result cond_res = simplify_to_float(&scope, &fun_call->args.arr[2]);
 						if(cond_res.failed){
-							fatal("[line %d] cannot while %s\n", exprs->arr[i].line, extype2str(exprs->arr[i].as.fun_call->args.arr[0].type));
+							fatal("[line %d] cannot for %s\n", exprs->arr[i].line, extype2str(fun_call->args.arr[2].type));
+							i = exprs->meta.count+1;
+							goto et_fun_call_end;
+						}
+
+						if(cond_res.as.num == 0.0f){
+							i++; // skip next expression, loop failed
+							scope.loop_index--;
+						}
+						else{
+							// NOTE using skip_hold DOES NOT allow for nested loops
+							skip_hold = -2;
+						}
+						
+						break;
+					}
+					string_match(fun_call->identifier.raw, "while"){
+						// NOTE: UNUSED CURRENTLY
+						if(scope.loop_index == 0 || (scope.loop_index != 0 && scope.loop_stack[scope.loop_index-1] != i)){
+							scope.loop_stack[scope.loop_index++] = i;
+						}
+						result cond_res = simplify_to_float(&scope, &fun_call->args.arr[0]);
+						if(cond_res.failed){
+							fatal("[line %d] cannot while %s\n", exprs->arr[i].line, extype2str(fun_call->args.arr[0].type));
 							i = exprs->meta.count+1;
 							goto et_fun_call_end;
 						}
 
 						if(cond_res.as.num == 0.0f){
 							i++; // skip the next expression since the while loop failed
+							scope.loop_index--;
 						}
 						else {
+							// NOTE using skip_hold DOES NOT allow for nested loops
 							skip_hold = -2; // skip back up to the while after running the next expression
 						}
 
 						break;
 					}
-					string_match(exprs->arr[i].as.fun_call->identifier.raw,"if"){
-						if(exprs->arr[i].as.fun_call->args.meta.count != 1){
+					string_match(fun_call->identifier.raw,"if"){
+						if(fun_call->args.meta.count != 1){
 							fatal("[line %d] if expects one argument\n");
 							i = exprs->meta.count+1;
 							goto et_fun_call_end;
 						}
 
-						result cond_res = simplify_to_float(&scope, &exprs->arr[i].as.fun_call->args.arr[0]);
+						result cond_res = simplify_to_float(&scope, &fun_call->args.arr[0]);
 						if(cond_res.failed){
-							fatal("[line %d] cannot if %s\n", exprs->arr[i].line, extype2str(exprs->arr[i].as.fun_call->args.arr[0].type));
+							fatal("[line %d] cannot if %s\n", exprs->arr[i].line, extype2str(fun_call->args.arr[0].type));
 							i = exprs->meta.count+1;
 							goto et_fun_call_end;
 						}
@@ -161,11 +222,11 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 						}
 						break;
 					}
-					string_match(exprs->arr[i].as.fun_call->identifier.raw,"serr"){
-						da_iterate(exprs->arr[i].as.fun_call->args,j){
-							result arg_res = simplify_to_string(&scope, &exprs->arr[i].as.fun_call->args.arr[j]);
+					string_match(fun_call->identifier.raw,"serr"){
+						da_iterate(fun_call->args,j){
+							result arg_res = simplify_to_string(&scope, &fun_call->args.arr[j]);
 							if(arg_res.failed){
-								fatal("[line %d] cannot serr %s\n", exprs->arr[i].line, extype2str(exprs->arr[i].as.fun_call->args.arr[j].type));
+								fatal("[line %d] cannot serr %s\n", exprs->arr[i].line, extype2str(fun_call->args.arr[j].type));
 								i = exprs->meta.count+1;
 								goto et_fun_call_end;
 							}
@@ -177,11 +238,11 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 						}
 						break;
 					}
-					string_match(exprs->arr[i].as.fun_call->identifier.raw,"sout"){
-						da_iterate(exprs->arr[i].as.fun_call->args,j){
-							result arg_res = simplify_to_string(&scope, &exprs->arr[i].as.fun_call->args.arr[j]);
+					string_match(fun_call->identifier.raw,"sout"){
+						da_iterate(fun_call->args,j){
+							result arg_res = simplify_to_string(&scope, &fun_call->args.arr[j]);
 							if(arg_res.failed){
-								fatal("[line %d] cannot sout %s\n", exprs->arr[i].line, extype2str(exprs->arr[i].as.fun_call->args.arr[j].type));
+								fatal("[line %d] cannot sout %s\n", exprs->arr[i].line, extype2str(fun_call->args.arr[j].type));
 								i = exprs->meta.count+1;
 								goto et_fun_call_end;
 							}
@@ -196,14 +257,14 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 				string_default{}
 
 				da_iterate(funcs,j){
-					if(strncmp(funcs.arr[j].name.arr, exprs->arr[i].as.fun_call->identifier.raw.arr, exprs->arr[i].as.fun_call->identifier.raw.len) == 0){
-						interpret(&scope.vars, funcs.arr[j].exprs, &exprs->arr[i].as.fun_call->args, funcs.arr[j].args);
+					if(strncmp(funcs.arr[j].name.arr, fun_call->identifier.raw.arr, fun_call->identifier.raw.len) == 0){
+						interpret(&scope.vars, funcs.arr[j].exprs, &fun_call->args, funcs.arr[j].args);
 
 						goto et_fun_call_end;
 					}
 				}
 
-				fatal("[line %d] unknown function %s\n", exprs->arr[i].line, exprs->arr[i].as.fun_call->identifier.raw.arr);
+				fatal("[line %d] unknown function %s\n", exprs->arr[i].line, fun_call->identifier.raw.arr);
 				i = exprs->meta.count+1;
 
 et_fun_call_end:
