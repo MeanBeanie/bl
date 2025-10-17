@@ -49,6 +49,10 @@ void string_free(string* str){
 	str->arr = NULL;
 }
 
+int string_cmp(string* s1, string* s2){
+	return strncmp(s1->arr, s2->arr, s1->len) == 0;
+}
+
 void da_init_meta(struct da_meta* meta, size_t elem_size){
 	meta->elem_size = elem_size;
 	meta->cap = 0;

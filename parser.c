@@ -600,7 +600,7 @@ void print_expr(struct expr* expr, int indent){
 		}
 		case ET_FUN_CALL:
 		{
-			print_ind("Ident: %s", expr->as.fun_call->identifier.raw.arr);
+			print_ind("Ident: \"%s\"", expr->as.fun_call->identifier.raw.arr);
 			print_ind("Args:");
 			for(size_t i = 0; i < expr->as.fun_call->args.meta.count; i++){
 				print_expr(&expr->as.fun_call->args.arr[i], indent+1);

@@ -111,6 +111,24 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 			case ET_FUN_CALL:
 			{
 				string_begin_matching
+					string_match(exprs->arr[i].as.fun_call->identifier.raw, "while"){
+						scope.loop_stack[scope.loop_index] = i+1;
+						result cond_res = simplify_to_float(&scope, &exprs->arr[i].as.fun_call->args.arr[0]);
+						if(cond_res.failed){
+							fatal("[line %d] cannot while %s\n", exprs->arr[i].line, extype2str(exprs->arr[i].as.fun_call->args.arr[0].type));
+							i = exprs->meta.count+1;
+							goto et_fun_call_end;
+						}
+
+						if(cond_res.as.num == 0.0f){
+							i++; // skip the next expression since the while loop failed
+						}
+						else {
+							skip_hold = -2; // skip back up to the while after running the next expression
+						}
+
+						break;
+					}
 					string_match(exprs->arr[i].as.fun_call->identifier.raw,"if"){
 						if(exprs->arr[i].as.fun_call->args.meta.count != 1){
 							fatal("[line %d] if expects one argument\n");
@@ -140,6 +158,22 @@ void interpret(struct da_var* prev_scope_vars, struct da_expr* exprs, struct da_
 						else if(else_cond){
 							// we have an else we need to skip
 							skip_hold = 2;
+						}
+						break;
+					}
+					string_match(exprs->arr[i].as.fun_call->identifier.raw,"serr"){
+						da_iterate(exprs->arr[i].as.fun_call->args,j){
+							result arg_res = simplify_to_string(&scope, &exprs->arr[i].as.fun_call->args.arr[j]);
+							if(arg_res.failed){
+								fatal("[line %d] cannot serr %s\n", exprs->arr[i].line, extype2str(exprs->arr[i].as.fun_call->args.arr[j].type));
+								i = exprs->meta.count+1;
+								goto et_fun_call_end;
+							}
+							fprintf(stderr, "%s", arg_res.as.str.arr);
+							fflush(stderr);
+							if(arg_res.generated){
+								string_free(&arg_res.as.str);
+							}
 						}
 						break;
 					}
@@ -191,6 +225,19 @@ et_fun_call_end:
 	}
 
 end_interpret:
+	if(argv == NULL && arg_ids == NULL && prev_scope_vars != NULL){
+		// subscope, we want to update the previous scopes variables
+		da_iterate(scope.vars,i){
+			da_iterate((*prev_scope_vars),j){
+				if(string_cmp(&prev_scope_vars->arr[j].id, &scope.vars.arr[i].id)){
+					if(prev_scope_vars->arr[j].type == TT_VAR_NUM){ // b/c strings are already pointer based so they don't need to be updated
+						prev_scope_vars->arr[j].as.num = scope.vars.arr[i].as.num;
+					}
+				}
+			}
+		}
+	}
+
 	da_iterate(scope.vars,i){
 		if(scope.vars.arr[i].type == TT_VAR_STR && scope.vars.arr[i].generated){
 			string_free(&scope.vars.arr[i].as.str);

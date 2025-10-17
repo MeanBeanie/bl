@@ -19,6 +19,9 @@ NEW_DA(struct variable, var);
 struct scope {
 	// TODO mayhaps keep track of backtrace in scope (i.e what called a function)
 	struct da_var vars;
+
+	size_t loop_stack[128];
+	size_t loop_index;
 };
 
 struct function {

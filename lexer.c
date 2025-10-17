@@ -255,6 +255,7 @@ const char* toktype2str(enum token_type type){
 		case TT_VAR_NUM: return "<VAR_NUM>";
 		case TT_VAR_STR: return "<VAR_STR>";
 		case TT_VAR_FUN: return "<VAR_FUN>";
+		case TT_VARIADIC: return "<VARIADIC>";
 	}
 
 	return "<Invalid Token>";

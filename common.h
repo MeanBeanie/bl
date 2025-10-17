@@ -11,6 +11,7 @@ typedef struct {
 // allocates a string for you
 string string_from(char* str, int len);
 void string_free(string* str);
+int string_cmp(string* s1, string* s2);
 
 #define string_begin_matching if(0){}
 #define string_match(str,cmp) else if(strncmp(str.arr, cmp, str.len) == 0)
